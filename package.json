@@ -12,6 +12,7 @@
     "discord.js": "^14.24.2",
     "dotenv": "^17.2.3",
     "mongoose": "^8.19.4",
-    "riffy": "^1.0.8"
+    "riffy": "^1.0.8",
+    "spotify-bot": "."
   }
 }

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import commandHandler from './handlers/commandHandler.js';
 import eventHandler from './handlers/eventHandler.js';
+import { loadAllPrefixes } from './handlers/prefixHandler.js';
 import { Spotify } from './plugins/spotify.js';
 import { Deezer } from './plugins/deezer.js';
 import { AppleMusic } from './plugins/applemusic.js';
@@ -28,6 +29,7 @@ const client = new Client({
 });
 
 client.commands = new Collection();
+client.guildPrefixes = new Map();
 client.prefix = process.env.PREFIX || '!';
 
 const nodes = [{
@@ -104,16 +106,33 @@ client.riffy.on("trackStart", async (player, track) => {
 
 client.riffy.on("queueEnd", async (player) => {
     const channel = client.channels.cache.get(player.textChannel);
-    if (!channel) return;
-
-    const embed = createEmbed()
-        .setDescription(`${emoji.success} Queue has ended. Leaving voice channel.`);
-
-    channel.send({ embeds: [embed] }).catch(console.error);
     
-    setTimeout(() => {
-        if (player && !player.playing) player.destroy();
-    }, 1000);
+    if (player.twentyFourSeven) {
+        if (channel && !player.isAutoplay) {
+            const embed = createEmbed()
+                .setDescription(`${emoji.info} Queue ended. 24/7 mode is active, staying in voice channel.`);
+            channel.send({ embeds: [embed] }).catch(console.error);
+        }
+        
+        if (player.isAutoplay) {
+            await player.autoplay(player);
+        }
+        return;
+    }
+
+    if (player.isAutoplay) {
+        await player.autoplay(player);
+    } else {
+        if (channel) {
+            const embed = createEmbed()
+                .setDescription(`${emoji.success} Queue has ended. Leaving voice channel.`);
+            channel.send({ embeds: [embed] }).catch(console.error);
+        }
+        
+        setTimeout(() => {
+            if (player && !player.playing) player.destroy();
+        }, 1000);
+    }
 });
 
 client.riffy.on("trackError", async (player, track, error) => {
@@ -145,7 +164,10 @@ client.riffy.on("trackStuck", async (player, track, thresholdMs) => {
 });
 
 mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('✅ Connected to MongoDB'))
+    .then(async () => {
+        console.log('✅ Connected to MongoDB');
+        await loadAllPrefixes(client);
+    })
     .catch(err => console.error('❌ MongoDB error:', err));
 
 mongoose.connection.on('error', err => console.error('MongoDB error:', err));
