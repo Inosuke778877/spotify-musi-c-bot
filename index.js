@@ -13,11 +13,19 @@ import { AppleMusic } from './plugins/applemusic.js';
 import { getThumbnail } from './utils/getThumbnail.js';
 import emoji from './utils/emoji.js';
 import { createEmbed } from './utils/embedBuilder.js';
+import http from 'http';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('bot is running');
+});
+
+server.listen(3000);
 
 const client = new Client({
     intents: [
