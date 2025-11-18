@@ -19,13 +19,6 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('bot is running');
-});
-
-server.listen(3000);
-
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
