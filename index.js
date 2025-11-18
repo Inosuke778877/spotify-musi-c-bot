@@ -4,15 +4,18 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import http from 'http';
 import commandHandler from './handlers/commandHandler.js';
 import eventHandler from './handlers/eventHandler.js';
 import { loadAllPrefixes } from './handlers/prefixHandler.js';
 import { Spotify } from './plugins/spotify.js';
 import { Deezer } from './plugins/deezer.js';
 import { AppleMusic } from './plugins/applemusic.js';
+import { Lyrics } from './plugins/lyrics.js';
 import { getThumbnail } from './utils/getThumbnail.js';
 import emoji from './utils/emoji.js';
 import { createEmbed } from './utils/embedBuilder.js';
+import { Dynamic } from 'musicard';
 
 dotenv.config();
 
@@ -49,7 +52,6 @@ client.riffy = new Riffy(client, nodes, {
     restVersion: "v4"
 });
 
-import { Lyrics } from './plugins/lyrics.js';
 const lyricsPlugin = new Lyrics({ geniusKey: process.env.GENIUS_API_KEY });
 lyricsPlugin.load(client.riffy);
 
@@ -91,13 +93,14 @@ client.riffy.on("trackStart", async (player, track) => {
         
         const musicCard = await Dynamic({
             thumbnailImage: thumbnail || 'https://cdn.discordapp.com/attachments/1220001571228880917/1220001571690123284/01.png',
-            backgroundImage: thumbnail || 'https://your-background-image-url.png',  // Add background image
+            backgroundImage: thumbnail || 'https://cdn.discordapp.com/attachments/1220001571228880917/1220001571690123284/01.png',
             imageDarkness: 60,
+            backgroundColor: '#070707',
             progress: 0,
-            progressColor: '#ffffff',
+            progressColor: '#00FF00',
             progressBarColor: '#5F2D00',
             name: track.info.title.length > 30 ? track.info.title.substring(0, 30) + '...' : track.info.title,
-            nameColor: '#ffffff',
+            nameColor: '#00FF00',
             author: track.info.author.length > 30 ? track.info.author.substring(0, 30) + '...' : track.info.author,
             authorColor: '#696969',
         });
@@ -235,6 +238,33 @@ client.once('clientReady', (c) => {
 client.on('error', error => console.error('Client error:', error));
 client.on('warn', info => console.warn('Client warning:', info));
 
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Music Bot</title>
+            <style>
+                body { font-family: Arial; text-align: center; padding: 50px; background: #070707; color: #00FF00; }
+                h1 { font-size: 48px; }
+                p { font-size: 24px; }
+            </style>
+        </head>
+        <body>
+            <h1>✅ Bot Running</h1>
+            <p>Discord Music Bot is online!</p>
+            <p>Guilds: ${client.guilds?.cache.size || 0}</p>
+            <p>Uptime: ${Math.floor(process.uptime())}s</p>
+        </body>
+        </html>
+    `);
+});
+
+server.listen(3000, () => {
+    console.log('🌐 HTTP server running on port 3000');
+});
+
 process.on('SIGINT', () => {
     console.log('\n🛑 Shutting down...');
     
@@ -250,6 +280,10 @@ process.on('SIGINT', () => {
     
     mongoose.connection.close(() => {
         console.log('✅ MongoDB closed');
+    });
+    
+    server.close(() => {
+        console.log('✅ HTTP server closed');
     });
     
     client.destroy();
