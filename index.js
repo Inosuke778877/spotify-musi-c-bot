@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import http from 'http';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 import commandHandler from './handlers/commandHandler.js';
 import eventHandler from './handlers/eventHandler.js';
 import { loadAllPrefixes } from './handlers/prefixHandler.js';
@@ -238,27 +240,16 @@ client.once('clientReady', (c) => {
 client.on('error', error => console.error('Client error:', error));
 client.on('warn', info => console.warn('Client warning:', info));
 
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Music Bot</title>
-            <style>
-                body { font-family: Arial; text-align: center; padding: 50px; background: #070707; color: #00FF00; }
-                h1 { font-size: 48px; }
-                p { font-size: 24px; }
-            </style>
-        </head>
-        <body>
-            <h1>✅ Bot Running</h1>
-            <p>Discord Music Bot is online!</p>
-            <p>Guilds: ${client.guilds?.cache.size || 0}</p>
-            <p>Uptime: ${Math.floor(process.uptime())}s</p>
-        </body>
-        </html>
-    `);
+const server = http.createServer(async (req, res) => {
+    try {
+        const filePath = join(__dirname, 'index.html');
+        const content = await readFile(filePath, 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(content);
+    } catch (error) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('404 Not Found');
+    }
 });
 
 server.listen(3000, () => {
