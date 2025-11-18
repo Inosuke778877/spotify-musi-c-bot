@@ -22,15 +22,16 @@ export class Deezer extends Plugin {
     }
 
     check(query) {
-        return REGEX.test(query);
+        const finalQuery = query.query || query;
+        return REGEX.test(finalQuery) && 
+               (finalQuery.includes('deezer.com') || finalQuery.includes('link.deezer.com'));
     }
 
-    // Follow short link if needed
     async resolveLink(url) {
         if (!url.includes("link.deezer.com")) return url;
         try {
             const res = await fetch(url, { method: "HEAD", redirect: "follow" });
-            return res.url; // final redirected URL
+            return res.url;
         } catch (error) {
             console.error('Error resolving Deezer short link:', error);
             return url;
@@ -44,20 +45,31 @@ export class Deezer extends Plugin {
         const loadFailed = node.restVersion === "v4" ? "error" : "LOAD_FAILED";
 
         const finalQuery = query.query || query;
-        const resolvedURL = await this.resolveLink(finalQuery); // follow short link
+        
+        if (!this.check(finalQuery)) {
+            return this._resolve({ query, requester });
+        }
+        
+        const resolvedURL = await this.resolveLink(finalQuery);
         const [, type, id] = resolvedURL.match(REGEX) || [];
 
         if (type in this.functions) {
             try {
                 const data = await this.functions[type](id);
+                
+                if (!data || !data.tracks || !data.tracks.length) {
+                    console.error('Deezer: No tracks found');
+                    return this._resolve({ query, requester });
+                }
+
                 const tracks = await Promise.all(
                     data.tracks.map(track => this.buildUnresolved(track, requester))
                 );
                 const name = ["playlist", "album"].includes(type) ? data.name : null;
                 return this.buildResponse(type === "track" ? trackLoaded : playlistLoaded, tracks, name, null);
             } catch (e) {
-                console.error('Deezer resolve error:', e);
-                return this.buildResponse(loadFailed, null, null, e.message || null);
+                console.error('Deezer resolve error:', e.message);
+                return this._resolve({ query, requester });
             }
         }
 
@@ -65,55 +77,88 @@ export class Deezer extends Plugin {
     }
 
     async getTrack(id) {
-        const data = await fetch(`${this.baseURL}/track/${id}`).then(res => res.json());
-        if (data.error) throw new Error(data.error.message);
+        try {
+            const data = await fetch(`${this.baseURL}/track/${id}`).then(res => res.json());
+            
+            if (data.error) {
+                throw new Error(data.error.message || 'Deezer API error');
+            }
 
-        return {
-            tracks: [{
-                id: data.id,
-                title: data.title,
-                author: data.artist?.name || "Unknown",
-                duration: data.duration * 1000,
-                // Use highest quality cover: cover_xl (1000x1000) > cover_big (500x500) > cover (250x250)
-                thumbnail: data.album?.cover_xl || data.album?.cover_big || data.album?.cover_medium || data.album?.cover || null,
-            }],
-        };
+            if (!data.id || !data.title) {
+                throw new Error('Invalid track data from Deezer');
+            }
+
+            return {
+                tracks: [{
+                    id: data.id,
+                    title: data.title,
+                    author: data.artist?.name || data.contributors?.[0]?.name || "Unknown",
+                    duration: data.duration * 1000,
+                    thumbnail: data.album?.cover_xl || data.album?.cover_big || data.album?.cover_medium || data.album?.cover || null,
+                }],
+            };
+        } catch (error) {
+            console.error(`Deezer getTrack error for ID ${id}:`, error.message);
+            throw error;
+        }
     }
 
     async getAlbum(id) {
-        const data = await fetch(`${this.baseURL}/album/${id}?limit=100`).then(res => res.json());
-        if (data.error) throw new Error(data.error.message);
+        try {
+            const data = await fetch(`${this.baseURL}/album/${id}`).then(res => res.json());
+            
+            if (data.error) {
+                throw new Error(data.error.message || 'Deezer API error');
+            }
 
-        // Get album cover (highest quality)
-        const albumCover = data.cover_xl || data.cover_big || data.cover_medium || data.cover || null;
+            if (!data.tracks || !data.tracks.data || !data.tracks.data.length) {
+                throw new Error('No tracks found in album');
+            }
 
-        return {
-            name: data.title,
-            tracks: data.tracks.data.map(track => ({
-                id: track.id,
-                title: track.title,
-                author: track.artist?.name || data.artist?.name || "Unknown",
-                duration: track.duration * 1000,
-                thumbnail: albumCover, // Use album cover for all tracks
-            })),
-        };
+            const albumCover = data.cover_xl || data.cover_big || data.cover_medium || data.cover || null;
+
+            return {
+                name: data.title,
+                tracks: data.tracks.data.map(track => ({
+                    id: track.id,
+                    title: track.title,
+                    author: track.artist?.name || data.artist?.name || "Unknown",
+                    duration: track.duration * 1000,
+                    thumbnail: albumCover,
+                })),
+            };
+        } catch (error) {
+            console.error(`Deezer getAlbum error for ID ${id}:`, error.message);
+            throw error;
+        }
     }
 
     async getPlaylist(id) {
-        const data = await fetch(`${this.baseURL}/playlist/${id}?limit=100`).then(res => res.json());
-        if (data.error) throw new Error(data.error.message);
+        try {
+            const data = await fetch(`${this.baseURL}/playlist/${id}`).then(res => res.json());
+            
+            if (data.error) {
+                throw new Error(data.error.message || 'Deezer API error');
+            }
 
-        return {
-            name: data.title,
-            tracks: data.tracks.data.map(track => ({
-                id: track.id,
-                title: track.title,
-                author: track.artist?.name || "Unknown",
-                duration: track.duration * 1000,
-                // Each track uses its own album cover
-                thumbnail: track.album?.cover_xl || track.album?.cover_big || track.album?.cover_medium || track.album?.cover || null,
-            })),
-        };
+            if (!data.tracks || !data.tracks.data || !data.tracks.data.length) {
+                throw new Error('No tracks found in playlist');
+            }
+
+            return {
+                name: data.title,
+                tracks: data.tracks.data.map(track => ({
+                    id: track.id,
+                    title: track.title,
+                    author: track.artist?.name || "Unknown",
+                    duration: track.duration * 1000,
+                    thumbnail: track.album?.cover_xl || track.album?.cover_big || track.album?.cover_medium || track.album?.cover || null,
+                })),
+            };
+        } catch (error) {
+            console.error(`Deezer getPlaylist error for ID ${id}:`, error.message);
+            throw error;
+        }
     }
 
     async buildUnresolved(track, requester) {
@@ -131,7 +176,7 @@ export class Deezer extends Plugin {
                 sourceName: "deezer",
                 title: track.title,
                 uri: `https://www.deezer.com/track/${track.id}`,
-                artworkUrl: track.thumbnail || null,
+                artworkUrl: track.thumbnail,
                 position: 0,
             },
         }, requester, node);

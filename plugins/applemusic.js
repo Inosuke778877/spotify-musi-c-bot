@@ -22,7 +22,8 @@ export class AppleMusic extends Plugin {
     }
 
     check(query) {
-        return REGEX.test(query);
+        const finalQuery = query.query || query;
+        return /music\.apple\.com/i.test(finalQuery);
     }
 
     async resolve({ query, requester }) {

@@ -1,31 +1,29 @@
-/**
- * Get thumbnail URL from track info
- * Handles different sources and constructs thumbnails when needed
- * @param {Object} track - The track object from Riffy
- * @returns {string|null} - The thumbnail URL or null
- */
 export function getThumbnail(track) {
-    // First, check if artworkUrl is provided (Lavalink v4 or plugins)
+    // Check both artworkUrl and thumbnail for compatibility
     if (track.info.artworkUrl) {
         return track.info.artworkUrl;
     }
+    
+    if (track.info.thumbnail) {
+        return track.info.thumbnail;
+    }
 
-    // Spotify tracks (from plugin)
+    // Spotify tracks
     if (track.info.sourceName === 'spotify') {
-        return track.info.artworkUrl || null;
+        return track.info.artworkUrl || track.info.thumbnail || null;
     }
 
-    // Deezer tracks (from plugin)
+    // Deezer tracks
     if (track.info.sourceName === 'deezer') {
-        return track.info.artworkUrl || null;
+        return track.info.artworkUrl || track.info.thumbnail || null;
     }
 
-    // Apple Music tracks (from plugin)
+    // Apple Music tracks
     if (track.info.sourceName === 'applemusic') {
-        return track.info.artworkUrl || null;
+        return track.info.artworkUrl || track.info.thumbnail || null;
     }
 
-    // YouTube tracks - construct thumbnail from identifier/URI
+    // YouTube tracks
     if (track.info.sourceName === 'youtube' || track.info.uri?.includes('youtube.com') || track.info.uri?.includes('youtu.be')) {
         let videoId = track.info.identifier;
         
@@ -46,6 +44,5 @@ export function getThumbnail(track) {
         return track.pluginInfo.artworkUrl;
     }
 
-    // No thumbnail available
     return null;
 }

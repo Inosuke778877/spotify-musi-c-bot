@@ -34,7 +34,7 @@ export default {
 
         const resolve = await client.riffy.resolve({ query, requester: message.author });
 
-        if (!resolve || !resolve.tracks.length) {
+        if (!resolve || !resolve.tracks || resolve.tracks.length === 0) {
             const embed = createEmbed()
                 .setDescription(`${emoji.error} No results found!`);
             return message.channel.send({ embeds: [embed] });

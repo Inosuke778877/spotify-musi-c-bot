@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Collection } from 'discord.js';
+import { Client, GatewayIntentBits, Collection, AttachmentBuilder } from 'discord.js';
 import { Riffy } from 'riffy';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
@@ -13,7 +13,6 @@ import { AppleMusic } from './plugins/applemusic.js';
 import { getThumbnail } from './utils/getThumbnail.js';
 import emoji from './utils/emoji.js';
 import { createEmbed } from './utils/embedBuilder.js';
-import http from 'http';
 
 dotenv.config();
 
@@ -57,6 +56,10 @@ client.riffy = new Riffy(client, nodes, {
     restVersion: "v4"
 });
 
+import { Lyrics } from './plugins/lyrics.js';
+const lyricsPlugin = new Lyrics({ geniusKey: process.env.GENIUS_API_KEY });
+lyricsPlugin.load(client.riffy);
+
 if (process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET) {
     const spotify = new Spotify({
         clientId: process.env.SPOTIFY_CLIENT_ID,
@@ -90,26 +93,66 @@ client.riffy.on("trackStart", async (player, track) => {
     const channel = client.channels.cache.get(player.textChannel);
     if (!channel) return;
 
-    const embed = createEmbed()
-        .setTitle(`${emoji.music} Now Playing`)
-        .setDescription(`**[${track.info.title}](${track.info.uri})**`)
-        .addFields(
-            { name: `${emoji.author} Author`, value: track.info.author, inline: true },
-            { name: `${emoji.duration} Duration`, value: formatTime(track.info.length), inline: true },
-            { name: `${emoji.info} Source`, value: track.info.sourceName || 'Unknown', inline: true }
-        );
-
-    const thumbnail = getThumbnail(track);
-    if (thumbnail) embed.setThumbnail(thumbnail);
-
-    if (track.requester) {
-        embed.setFooter({ 
-            text: `Requested by ${track.requester.tag}`, 
-            iconURL: track.requester.displayAvatarURL() 
+    try {
+        const thumbnail = getThumbnail(track);
+        
+        const musicCard = await Dynamic({
+            thumbnailImage: thumbnail || 'https://cdn.discordapp.com/attachments/1220001571228880917/1220001571690123284/01.png',
+            backgroundImage: thumbnail || 'https://your-background-image-url.png',  // Add background image
+            imageDarkness: 60,
+            progress: 0,
+            progressColor: '#ffffff',
+            progressBarColor: '#5F2D00',
+            name: track.info.title.length > 30 ? track.info.title.substring(0, 30) + '...' : track.info.title,
+            nameColor: '#ffffff',
+            author: track.info.author.length > 30 ? track.info.author.substring(0, 30) + '...' : track.info.author,
+            authorColor: '#696969',
         });
-    }
 
-    channel.send({ embeds: [embed] }).catch(console.error);
+        const attachment = new AttachmentBuilder(musicCard, { name: 'musiccard.png' });
+
+        const embed = createEmbed()
+            .setTitle(`${emoji.music} Now Playing`)
+            .setDescription(`**[${track.info.title}](${track.info.uri})**`)
+            .addFields(
+                { name: `${emoji.author} Author`, value: track.info.author, inline: true },
+                { name: `${emoji.duration} Duration`, value: formatTime(track.info.length), inline: true },
+                { name: `${emoji.info} Source`, value: track.info.sourceName || 'Unknown', inline: true }
+            )
+            .setImage('attachment://musiccard.png');
+
+        if (track.requester) {
+            embed.setFooter({ 
+                text: `Requested by ${track.requester.tag}`, 
+                iconURL: track.requester.displayAvatarURL() 
+            });
+        }
+
+        channel.send({ embeds: [embed], files: [attachment] }).catch(console.error);
+    } catch (error) {
+        console.error('Error creating music card:', error);
+        
+        const embed = createEmbed()
+            .setTitle(`${emoji.music} Now Playing`)
+            .setDescription(`**[${track.info.title}](${track.info.uri})**`)
+            .addFields(
+                { name: `${emoji.author} Author`, value: track.info.author, inline: true },
+                { name: `${emoji.duration} Duration`, value: formatTime(track.info.length), inline: true },
+                { name: `${emoji.info} Source`, value: track.info.sourceName || 'Unknown', inline: true }
+            );
+
+        const thumbnail = getThumbnail(track);
+        if (thumbnail) embed.setThumbnail(thumbnail);
+
+        if (track.requester) {
+            embed.setFooter({ 
+                text: `Requested by ${track.requester.tag}`, 
+                iconURL: track.requester.displayAvatarURL() 
+            });
+        }
+
+        channel.send({ embeds: [embed] }).catch(console.error);
+    }
 });
 
 client.riffy.on("queueEnd", async (player) => {

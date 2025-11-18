@@ -27,7 +27,8 @@ export class Spotify extends Plugin {
     }
 
     check(query) {
-        return REGEX.test(query);
+        const finalQuery = query.query || query;
+        return /spotify\.com|spotify:/i.test(finalQuery);
     }
 
     async resolve({ query, requester }) {
@@ -49,6 +50,11 @@ export class Spotify extends Plugin {
 
         if (!this.token) await this.requestToken();
         const finalQuery = query.query || query;
+        
+        if (!this.check(finalQuery)) {
+            return this._resolve({ query, requester });
+        }
+        
         const [, type, id] = finalQuery.match(REGEX) || [];
 
         if (type in this.functions) {
@@ -70,6 +76,7 @@ export class Spotify extends Plugin {
 
                 return this.buildResponse(loadType, tracks, name, null);
             } catch (e) {
+                console.error('Spotify error:', e.message);
                 return this.buildResponse(e.loadType || loadFailed, null, null, e.message || null);
             }
         }
@@ -91,7 +98,6 @@ export class Spotify extends Plugin {
                 title: data.name,
                 author: data.artists[0].name,
                 duration: data.duration_ms,
-                // Get highest quality album artwork
                 thumbnail: data.album?.images?.[0]?.url || null
             }]
         };
@@ -105,7 +111,6 @@ export class Spotify extends Plugin {
             },
         }).then(async res => await res.json());
 
-        // Get album artwork (highest quality)
         const albumArtwork = data.images?.[0]?.url || null;
 
         return {
@@ -116,7 +121,7 @@ export class Spotify extends Plugin {
                 title: track.name,
                 author: track.artists[0].name,
                 duration: track.duration_ms,
-                thumbnail: albumArtwork // Use album artwork for all tracks
+                thumbnail: albumArtwork
             }))
         };
     }
@@ -129,7 +134,6 @@ export class Spotify extends Plugin {
             },
         }).then(async res => await res.json());
 
-        // Get playlist artwork (highest quality)
         const playlistArtwork = data.images?.[0]?.url || null;
 
         return {
@@ -140,7 +144,6 @@ export class Spotify extends Plugin {
                 title: item.track.name,
                 author: item.track.artists[0].name,
                 duration: item.track.duration_ms,
-                // Use track's album artwork, fallback to playlist artwork
                 thumbnail: item.track.album?.images?.[0]?.url || playlistArtwork
             }))
         };
@@ -180,8 +183,27 @@ export class Spotify extends Plugin {
 
     async buildUnresolved(track, requester) {
         if (!track) throw new ReferenceError('The Spotify track object was not provided');
-
         const node = this.riffy.leastUsedNodes[0];
+
+        const searchQuery = `${track.author} ${track.title}`;
+        try {
+            const result = await this._resolve({ 
+                query: searchQuery, 
+                requester 
+            });
+
+            if (result && result.tracks && result.tracks.length > 0) {
+                const foundTrack = result.tracks[0];
+                foundTrack.info.artworkUrl = track.thumbnail;
+                foundTrack.info.sourceName = "spotify";
+                foundTrack.info.uri = `https://open.spotify.com/track/${track.id}`;
+                foundTrack.info.title = track.title;
+                foundTrack.info.author = track.author;
+                return foundTrack;
+            }
+        } catch (err) {
+            console.error('Error searching for Spotify track:', err.message);
+        }
 
         return new Track(
             {
@@ -195,7 +217,7 @@ export class Spotify extends Plugin {
                     sourceName: "spotify",
                     title: track.title,
                     uri: `https://open.spotify.com/track/${track.id}`,
-                    artworkUrl: track.thumbnail, // Use Spotify album artwork
+                    artworkUrl: track.thumbnail,
                     position: 0,
                 },
             },
