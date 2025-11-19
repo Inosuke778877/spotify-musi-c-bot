@@ -51,8 +51,11 @@ export default {
                 { name: `${emoji.info} Total Tracks`, value: `${queue.length}`, inline: true },
                 { name: `${emoji.duration} Total Duration`, value: calculateTotalDuration(queue), inline: true },
                 { name: `${emoji.loop} Loop`, value: player.loop || 'none', inline: true }
-            )
-            .setFooter({ text: queue.length > perPage ? `Page ${page}/${totalPages} • Use ${client.prefix}queue <page>` : '' });
+            );
+
+        if (queue.length > perPage) {
+            embed.setFooter({ text: `Page ${page}/${totalPages} • Use ${client.prefix}queue <page>` });
+        }
 
         if (player.isAutoplay) {
             embed.addFields({ name: `${emoji.shuffle} Autoplay`, value: 'Enabled', inline: true });

@@ -21,5 +21,9 @@ export default {
     add: '<:emoji_34:1414634742820769822>',
     remove: '<:emoji_34:1414634762147991562>',
     load: '<:discotoolsxyzicon4:1415193718193127474>',
-    save: '<:discotoolsxyzicon5:1415193715420561471>'
+    save: '<:discotoolsxyzicon5:1415193715420561471>',
+    youtube: '▶️',
+    spotify: '🟢',
+    applemusic: '🍎',
+    deezer: '🔵'
 };
